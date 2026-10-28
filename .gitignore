@@ -1,0 +1,111 @@
+```gitignore
+# ============================================================
+# Unity
+# ============================================================
+
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Memory captures
+[Mm]emoryCaptures/
+
+# Recordings
+[Rr]ecordings/
+
+# Asset Store tools
+Assets/AssetStoreTools*
+
+# Unity-generated solution/project files
+/*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+!Standalone/FrontierDispatch.sln
+
+# Unity crash reports
+sysinfo.txt
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+
+# ============================================================
+# Standalone .NET projects
+# ============================================================
+
+**/bin/
+**/obj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Test / coverage output
+TestResults/
+**/TestResults/
+coverage/
+**/coverage/
+
+# ============================================================
+# JetBrains Rider
+# ============================================================
+
+.idea/
+*.sln.iml
+
+# ============================================================
+# Visual Studio / VS Code
+# ============================================================
+
+.vs/
+.vsconfig
+frontier-dispatch-game.slnx
+
+# Keep VS Code project settings only if we deliberately add them.
+# Uncomment this if we decide not to version .vscode:
+# .vscode/
+
+# ============================================================
+# Operating system files
+# ============================================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Miscellaneous
+# ============================================================
+
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# ============================================================
+# IMPORTANT: do NOT ignore Unity metadata
+# ============================================================
+
+# Assets/**/*.meta MUST be committed.
+# ProjectSettings/ MUST be committed.
+# Packages/manifest.json MUST be committed.
+# Packages/packages-lock.json MUST be committed.
+```

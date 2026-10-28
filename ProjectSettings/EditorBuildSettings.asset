@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/DSA/Scenes/Launcher.unity
+    guid: c6dfb74d4eb93a5478af9ca1b08ce3be
+  - enabled: 1
+    path: Assets/DSA/Scenes/Week02_StackQueue.unity
+    guid: aa9dce7d4243dd343bbf2cdf4741f7be
+  - enabled: 1
+    path: Assets/DSA/Scenes/Week02_HashLookup.unity
+    guid: 7d4caadbe77dd094c93ce4ca280b8a71
+  - enabled: 1
+    path: Assets/DSA/Scenes/Assignment_WorldMap.unity
+    guid: 221c1c5daa72b16478aa474de1e571de
+  m_configObjects:
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  m_UseUCBPForAssetBundles: 0

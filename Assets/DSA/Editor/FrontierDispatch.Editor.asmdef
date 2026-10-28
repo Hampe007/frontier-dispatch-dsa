@@ -1,0 +1,11 @@
+{
+  "name": "FrontierDispatch.Editor",
+  "rootNamespace": "FrontierDispatch.Editor",
+  "references": [
+    "FrontierDispatch.Core",
+    "FrontierDispatch.Unity"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

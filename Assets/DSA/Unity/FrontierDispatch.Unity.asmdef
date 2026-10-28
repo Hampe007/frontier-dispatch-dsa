@@ -1,0 +1,7 @@
+{
+  "name": "FrontierDispatch.Unity",
+  "rootNamespace": "FrontierDispatch.Unity",
+  "references": [
+    "FrontierDispatch.Core"
+  ]
+}

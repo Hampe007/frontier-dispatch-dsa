@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FrontierDispatch.Core", "src\FrontierDispatch.Core\FrontierDispatch.Core.csproj", "{1BA0273B-EC08-4162-BC45-6F820720A5B9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FrontierDispatch.App", "src\FrontierDispatch.App\FrontierDispatch.App.csproj", "{17A53021-693E-41F1-925A-385DE1B044AB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FrontierDispatch.Tests", "tests\FrontierDispatch.Tests\FrontierDispatch.Tests.csproj", "{386A743E-CC18-4F75-9F63-3353DC6DF0BD}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {1BA0273B-EC08-4162-BC45-6F820720A5B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {1BA0273B-EC08-4162-BC45-6F820720A5B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {1BA0273B-EC08-4162-BC45-6F820720A5B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {1BA0273B-EC08-4162-BC45-6F820720A5B9}.Release|Any CPU.Build.0 = Release|Any CPU
+        {17A53021-693E-41F1-925A-385DE1B044AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {17A53021-693E-41F1-925A-385DE1B044AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {17A53021-693E-41F1-925A-385DE1B044AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {17A53021-693E-41F1-925A-385DE1B044AB}.Release|Any CPU.Build.0 = Release|Any CPU
+        {386A743E-CC18-4F75-9F63-3353DC6DF0BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {386A743E-CC18-4F75-9F63-3353DC6DF0BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {386A743E-CC18-4F75-9F63-3353DC6DF0BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {386A743E-CC18-4F75-9F63-3353DC6DF0BD}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal
