@@ -43,6 +43,47 @@ namespace FrontierDispatch.Tests
         }
         
         [Test]
+        public void FindOutgoingConnections_UnknownSource_ReturnsEmpty()
+        {
+            var queries = new WorldQueries(SampleWorldFactory.CreateSmall());
+
+            Assert.That(queries.FindOutgoingConnections(9999), Is.Empty);
+        }
+
+        [Test]
+        public void FindOutgoingConnections_LocationWithNoOutgoing_ReturnsEmpty()
+        {
+            var locations = new[]
+            {
+                new Location(2, "Harbor", new WorldPosition(0, 0), "Port")
+            };
+            var world = new WorldData(locations, new Connection[0]);
+            var queries = new WorldQueries(world);
+
+            Assert.That(queries.FindOutgoingConnections(2), Is.Empty);
+        }
+
+        [Test]
+        public void FindOutgoingConnections_MixedSources_PreservesMatchingOrder()
+        {
+            var locations = new[]
+            {
+                new Location(1, "Town", new WorldPosition(0, 0), "Town"),
+                new Location(2, "Farm", new WorldPosition(1, 0), "Farm"),
+                new Location(3, "Mine", new WorldPosition(2, 0), "Mine")
+            };
+
+            var first = new Connection(1, 2, 4);
+            var other = new Connection(2, 1, 4);
+            var last = new Connection(1, 3, 7);
+
+            var world = new WorldData(locations, new[] { first, other, last });
+            var queries = new WorldQueries(world);
+
+            Assert.That(queries.FindOutgoingConnections(1), Is.EqualTo(new[] { first, last }));
+        }
+
+        [Test]
         public void WorldData_DuplicateLocationId_ThrowsArgumentException()
         {
             var locations = new[]
