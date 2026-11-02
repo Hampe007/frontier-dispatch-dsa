@@ -22,6 +22,15 @@ namespace FrontierDispatch.Tests
         }
 
         [Test]
+        public void FindLocationById_EmptyWorld_ReturnsNull()
+        {
+            var world = new WorldData(new Location[0], new Connection[0]);
+            var queries = new WorldQueries(world);
+
+            Assert.That(queries.FindLocationById(123), Is.Null);
+        }
+
+        [Test]
         public void FindOutgoingConnections_ReturnsOnlyMatchingOrigin()
         {
             var queries = new WorldQueries(SampleWorldFactory.CreateSmall());
@@ -31,6 +40,17 @@ namespace FrontierDispatch.Tests
             {
                 Assert.That(outgoing[i].FromLocationId, Is.EqualTo(734));
             }
+        }
+        
+        [Test]
+        public void WorldData_DuplicateLocationId_ThrowsArgumentException()
+        {
+            var locations = new[]
+            {
+                new Location(2, "Harbor", new WorldPosition(0, 0), "Port"),
+                new Location(2, "Home", new WorldPosition(1, 1), "House")
+            };
+            Assert.Throws<System.ArgumentException>(() => new WorldData(locations, new Connection[0]));
         }
     }
 }
