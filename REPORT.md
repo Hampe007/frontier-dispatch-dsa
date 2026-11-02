@@ -26,7 +26,11 @@ Keep this concise and specific to your implementation.
 
 ## 2. Data representation
 
-Describe important changes/retained choices, operations affected, and time/memory trade-offs.
+The `WorldData` constructor builds a private `Dictionary<int, Location>` named `_locationsById`. Each key is a location ID, and its value references the corresponding `Location` object. The original location and connection arrays remain available for iteration.
+
+The `WorldQueries.FindLocationById(int id)` method now calls `WorldData.FindLocationById(int id)`. That method searches the prepared dictionary using `TryGetValue` and returns the matching `Location`, or `null` if the ID is missing. Calling `Add` while building the dictionary rejects duplicate IDs by throwing an `ArgumentException`.
+
+The index is built once and reused by queries. It provides average O(1) lookup at the cost of expected O(V) preparation time and O(V) extra storage. The dictionary references existing objects rather than copying them. The `WorldQueries.FindOutgoingConnections(int fromLocationId)` method still scans the connections array.
 
 ## 3. Algorithms and adaptation
 
@@ -36,15 +40,24 @@ Explain your route finder at a useful high level and how the travel-budget query
 
 | Operation | Your representation/algorithm | Complexity | Short explanation |
 | --- | --- | --- | --- |
-| Find location by ID | | | |
-| Get outgoing connections | | | |
+| `FindLocationById(int id)` | Dictionary keyed by ID | Average O(1), worst-case O(V) | Hash lookup replaces the sequential scan. In the worst case, hash collisions can require checking up to V entries in the same bucket. |
+| `FindOutgoingConnections(int fromLocationId)` | Scan connections array | O(E) | Checks every connection and builds a result list. |
 | Priority queue enqueue | | | |
 | Priority queue dequeue-min | | | |
 | Route finding | | | |
 
+Preparing the location index takes expected O(V) time and O(V) additional storage.
+
 ## 5. Correctness and testing
 
-Important tests/edge cases and what they demonstrate.
+The existing tests in `WorldQueriesTests.cs` check that `FindLocationById` returns the matching location for a nonconsecutive ID and returns `null` for a missing ID. They also check that `FindOutgoingConnections` returns only connections with the requested origin.
+
+Added tests cover two edge cases:
+
+- `FindLocationById_EmptyWorld_ReturnsNull`: looking up an ID in an empty world returns `null`.
+- `WorldData_DuplicateLocationId_ThrowsArgumentException`: constructing `WorldData` with duplicate location IDs throws an `ArgumentException`.
+
+Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory produced **5 passed, 3 skipped, 0 failed**. The tests for Phases 3-5 remain skipped.
 
 ## 6. Performance investigation
 
@@ -56,13 +69,15 @@ Run from the repository root in Windows PowerShell using the default Debug confi
 dotnet run --project Standalone/src/FrontierDispatch.App -- --baseline
 ```
 
-| Measurement | Baseline |
-| --- | --- |
-| Locations (V) | 2,500 |
-| Connections (E) | 9,800 |
-| Iterations | 5,000 |
-| Elapsed query time | 445 ms |
-| Checksum | 6,267,100 |
+| Measurement | Original baseline | Location index |
+| --- | --- | --- |
+| Locations (V) | 2,500 | 2,500 |
+| Connections (E) | 9,800 | 9,800 |
+| Iterations | 5,000 | 5,000 |
+| Elapsed query time | 445 ms | 403 ms |
+| Checksum | 6,267,100 | 6,267,100 |
+
+The location-index run was about 9.4% faster than the original baseline, with the same checksum. This is an intermediate comparison from individual runs, so it does not establish a reliable speedup. Outgoing-connection queries still scan all connections. The timer excludes world construction, so dictionary preparation time and such have not yet been measured.
 
 ## 7. Development reflection
 
