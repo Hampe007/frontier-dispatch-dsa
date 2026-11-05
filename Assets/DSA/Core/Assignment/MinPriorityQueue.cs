@@ -58,8 +58,12 @@ namespace FrontierDispatch.Core
         /// </exception>
         public T Peek()
         {
-            // TODO: return the current minimum without changing the queue.
-            throw new NotImplementedException();
+            if (_heap.Count == 0)
+            {
+                throw new InvalidOperationException("The queue is empty.");
+            }
+
+            return _heap[0].Item;
         }
 
         /// <summary>
