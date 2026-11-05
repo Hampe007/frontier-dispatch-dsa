@@ -10,8 +10,6 @@ namespace FrontierDispatch.Core
     ///
     /// Items with lower integer priority values should be returned before
     /// items with higher priority values.
-    ///
-    /// This class is intentionally incomplete in the assignment starter.
     /// </summary>
     public sealed class MinPriorityQueue<T>
     {
@@ -30,8 +28,24 @@ namespace FrontierDispatch.Core
         /// </summary>
         public void Enqueue(T item, int priority)
         {
-            // TODO: insert the new entry and restore the min-heap invariant.
-            throw new NotImplementedException();
+            _heap.Add(new Entry(item, priority));
+            int index = _heap.Count - 1;
+
+            while (index > 0)
+            {
+                int parent = (index - 1) / 2;
+
+                if (_heap[parent].Priority <= _heap[index].Priority)
+                {
+                    break;
+                }
+                
+                Entry temp = _heap[parent]; 
+                _heap[parent] = _heap[index];
+                _heap[index] = temp;
+                
+                index = parent;
+            }
         }
 
         /// <summary>
@@ -42,8 +56,12 @@ namespace FrontierDispatch.Core
         /// </exception>
         public T Peek()
         {
-            // TODO: return the current minimum without changing the queue.
-            throw new NotImplementedException();
+            if (_heap.Count == 0)
+            {
+                throw new InvalidOperationException("The queue is empty.");
+            }
+
+            return _heap[0].Item;
         }
 
         /// <summary>
@@ -54,8 +72,47 @@ namespace FrontierDispatch.Core
         /// </exception>
         public T Dequeue()
         {
-            // TODO: remove the minimum item and restore the min-heap invariant.
-            throw new NotImplementedException();
+            if (_heap.Count == 0)
+            {
+                throw new InvalidOperationException("The queue is empty.");
+            }
+            
+            T item = _heap[0].Item;
+            int lastIndex = _heap.Count - 1;
+            _heap[0] = _heap[lastIndex];
+            _heap.RemoveAt(lastIndex);
+            int index = 0;
+
+            while (true)
+            {
+                int left = 2 * index + 1;
+                int right = left + 1;
+
+                if (left >= _heap.Count)
+                {
+                    break;
+                }
+
+                int smallerChild = left;
+
+                if (right < _heap.Count && _heap[right].Priority < _heap[left].Priority)
+                {
+                    smallerChild = right;
+                }
+
+                if (_heap[index].Priority <= _heap[smallerChild].Priority)
+                {
+                    break;
+                }
+
+                Entry temp = _heap[index];
+                _heap[index] = _heap[smallerChild];
+                _heap[smallerChild] = temp;
+
+                index = smallerChild;
+            }
+            
+            return item;
         }
 
         /// <summary>
