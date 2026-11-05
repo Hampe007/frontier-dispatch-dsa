@@ -10,8 +10,6 @@ namespace FrontierDispatch.Core
     ///
     /// Items with lower integer priority values should be returned before
     /// items with higher priority values.
-    ///
-    /// This class is intentionally incomplete in the assignment starter.
     /// </summary>
     public sealed class MinPriorityQueue<T>
     {
