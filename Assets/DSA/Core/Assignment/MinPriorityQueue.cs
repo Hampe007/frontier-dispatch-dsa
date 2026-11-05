@@ -74,8 +74,47 @@ namespace FrontierDispatch.Core
         /// </exception>
         public T Dequeue()
         {
-            // TODO: remove the minimum item and restore the min-heap invariant.
-            throw new NotImplementedException();
+            if (_heap.Count == 0)
+            {
+                throw new InvalidOperationException("The queue is empty.");
+            }
+            
+            T item = _heap[0].Item;
+            int lastIndex = _heap.Count - 1;
+            _heap[0] = _heap[lastIndex];
+            _heap.RemoveAt(lastIndex);
+            int index = 0;
+
+            while (true)
+            {
+                int left = 2 * index + 1;
+                int right = left + 1;
+
+                if (left >= _heap.Count)
+                {
+                    break;
+                }
+
+                int smallerChild = left;
+
+                if (right < _heap.Count && _heap[right].Priority < _heap[left].Priority)
+                {
+                    smallerChild = right;
+                }
+
+                if (_heap[index].Priority <= _heap[smallerChild].Priority)
+                {
+                    break;
+                }
+
+                Entry temp = _heap[index];
+                _heap[index] = _heap[smallerChild];
+                _heap[smallerChild] = temp;
+
+                index = smallerChild;
+            }
+            
+            return item;
         }
 
         /// <summary>
