@@ -36,6 +36,12 @@ The constructor also builds `_outgoingByLocationId`, a private `Dictionary<int, 
 
 The `WorldQueries.FindOutgoingConnections(int fromLocationId)` method now calls the matching method on `WorldData`. It retrieves the prepared list using `TryGetValue`, or returns `Array.Empty<Connection>()` when no connections match. The return type remains `IReadOnlyList<Connection>`. Queries reuse the lists instead of scanning all connections and allocating a new result list each time. Preparing this index takes expected O(E) time and extra storage for the lists and their connection references.
 
+The `MinPriorityQueue<T>` stores a binary min-heap in a private `List<Entry>`. Each entry pairs an item with its integer priority, so moving an entry keeps the item and priority together. The root at index 0 contains an item with the lowest priority.
+
+The position of an entry in the list is its index. For an entry at `index`, its parent is at `(index - 1) / 2` using integer division, provided the entry is not the root. Its left child is at `2 * index + 1`, and its right child is at `2 * index + 2`, if those positions exist in the list. Each parent has a priority less than or equal to the priorities of its children. This keeps the minimum at the root without sorting the entire list. Equal priorities are allowed without guaranteeing their removal order.
+
+Enqueue appends an entry and sifts it upward. Dequeue replaces the root with the last entry, removes the last slot, and sifts the replacement down through the smaller child. The list provides indexed access without separate node objects and links, but its backing array may have unused capacity and must copy entries when it grows.
+
 ## 3. Algorithms and adaptation
 
 Explain your route finder at a useful high level and how the travel-budget query adapts the same ideas.
@@ -46,11 +52,14 @@ Explain your route finder at a useful high level and how the travel-budget query
 | --- | --- | --- | --- |
 | `FindLocationById(int id)` | Dictionary keyed by ID | Average O(1), worst-case O(V) | Hash lookup replaces the sequential scan. In the worst case, hash collisions can require checking up to V entries in the same bucket. |
 | `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval; O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
-| Priority queue enqueue | | | |
-| Priority queue dequeue-min | | | |
+| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n); O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
+| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1); sifting follows one path down the heap. |
+| Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
 | Route finding | | | |
 
 Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
+
+For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows; the list retains capacity after removals. Each sift uses O(1) extra space.
 
 ## 5. Correctness and testing
 
@@ -64,7 +73,16 @@ Added tests cover the following cases:
 - `FindOutgoingConnections_LocationWithNoOutgoing_ReturnsEmpty`: an existing location without outgoing connections returns an empty collection.
 - `FindOutgoingConnections_MixedSources_PreservesMatchingOrder`: connections from other sources are excluded, and matching connections retain their original order.
 
-Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory produced **8 passed, 3 skipped, 0 failed**. The tests for Phases 3-5 remain skipped.
+Before Phase 3, the test suite produced **8 passed, 3 skipped, 0 failed**.
+
+For Phase 3, I enabled the priority-queue starter test and added `MinPriorityQueueTests.cs`:
+
+- `EmptyQueue_PeekAndDequeueThrow`: `Peek` and `Dequeue` throw `InvalidOperationException` for an empty queue, and `Count` remains zero.
+- `SingleItem_CanBeRemovedAndQueueReused`: repeated insertion and removal works after the queue becomes empty, and `Peek` leaves `Count` unchanged.
+- `DifferentInsertionOrders_DequeueInPriorityOrder`: ascending, descending, and mixed priorities are removed in ascending order, with `Count` checked after each removal.
+- `MixedOperations_PreserveMinimumAndDuplicateItems`: insertions and removals preserve the minimum, including negative priorities. Repeated `Peek` calls preserve `Count`, and distinct items with equal priorities are both returned without requiring a tie order.
+
+Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. Only the Phase 4 and Phase 5 starter tests remain skipped.
 
 ## 6. Performance investigation
 
@@ -96,11 +114,15 @@ I first reviewed my changes and the timing code in `Program.cs`. When I could no
 
 I also confirmed that the timer reports whole milliseconds and excludes index construction. A result of 0 ms therefore means the measured query time was below 1 ms, not that the queries took no time. This helped me understand why i need to consider both what a workload measures and how it displays the project results in the future.
 
+While writing the priority-queue tests, I searched for a way to run multiple test cases through one test method. I found the [Adding more features section of Microsoft's NUnit tutorial](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-csharp-with-nunit#adding-more-features), which introduced me to NUnit's `[TestCase]` attribute. This made it possible for me to write `DifferentInsertionOrders_DequeueInPriorityOrder` using the same test method for ascending, descending, and mixed insertion orders. Each attribute supplies a different array to the method, while the assertions stay the same. This let me check several insertion patterns without duplicating the test code.
+
 ## 8. Tools and AI assistance
 
 Briefly describe relevant assistance, if any.
 
 - After my changes, I noticed the baseline time dropped from 445 ms to 0 ms. I used AI to help investigate this unexpected drop, which guided me to discover that reusing the outgoing lists eliminated 49 million connection checks, leaving dictionary lookups and reads of each outgoing list's `Count`. Since index construction happens outside the timer and we use `sw.ElapsedMilliseconds` to display the result, this explains why the measured time dropped below 1 ms and why it displayed as 0 ms.
+
+- I have also started to use AI to review my report and give feedback and comments on what I had written like a "critic", including suggestions for improvement and things to consider in future work when documenting my work.
 
 ## 9. VG extension
 
