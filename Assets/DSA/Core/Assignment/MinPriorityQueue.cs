@@ -30,8 +30,24 @@ namespace FrontierDispatch.Core
         /// </summary>
         public void Enqueue(T item, int priority)
         {
-            // TODO: insert the new entry and restore the min-heap invariant.
-            throw new NotImplementedException();
+            _heap.Add(new Entry(item, priority));
+            int index = _heap.Count - 1;
+
+            while (index > 0)
+            {
+                int parent = (index - 1) / 2;
+
+                if (_heap[parent].Priority <= _heap[index].Priority)
+                {
+                    break;
+                }
+                
+                Entry temp = _heap[parent]; 
+                _heap[parent] = _heap[index];
+                _heap[index] = temp;
+                
+                index = parent;
+            }
         }
 
         /// <summary>
