@@ -116,6 +116,8 @@ I also confirmed that the timer reports whole milliseconds and excludes index co
 
 While writing the priority-queue tests, I searched for a way to run multiple test cases through one test method. I found the [Adding more features section of Microsoft's NUnit tutorial](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-csharp-with-nunit#adding-more-features), which introduced me to NUnit's `[TestCase]` attribute. This made it possible for me to write `DifferentInsertionOrders_DequeueInPriorityOrder` using the same test method for ascending, descending, and mixed insertion orders. Each attribute supplies a different array to the method, while the assertions stay the same. This let me check several insertion patterns without duplicating the test code.
 
+By Phase 4 (week 5 which is last week of the course), I decided to prioritize completing the individual assignment over continuing to practice creating feature branches from each phase branch. The earlier phases had given me practice with that workflow (so I now feel a bit better at it), and I wanted to focus my remaining time on implementation, testing, and doing the report.
+
 ## 8. Tools and AI assistance
 
 Briefly describe relevant assistance, if any.
