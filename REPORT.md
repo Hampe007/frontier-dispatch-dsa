@@ -48,6 +48,8 @@ Dijkstra solves the problem of finding the cheapest route rather than the route 
 
 With non-negative costs, a location's first processing finalizes its cheapest cost. This makes it safe to stop when the goal is processed. Following predecessors backwards and reversing the list reconstructs the route, including start and goal. Start equals goal returns a singleton path costing zero. An exhausted queue returns no route. Accumulated costs are assumed to fit in an `int`.
 
+For movement range, I adapted Dijkstra to explore all affordable locations instead of stopping at one goal. The query keeps `bestCost`, the heap, the visited set and the prepared outgoing lists, but needs no predecessors or path reconstruction. Before adding a road's cost, it checks whether the road fits the remaining budget. This includes exact-budget routes and avoids integer overflow. With non-negative costs, an over-budget route cannot become affordable by continuing. The result maps each reachable location to its cheapest cost. Missing starts or negative budgets return an empty dictionary.
+
 ## 4. Complexity
 
 | Operation | Your representation/algorithm | Complexity | Short explanation |
@@ -58,6 +60,9 @@ With non-negative costs, a location's first processing finalizes its cheapest co
 | Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1). Sifting follows one path down the heap. |
 | Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
 | Route finding | Dijkstra with binary min-heap and prepared outgoing lists | Expected O((V + E) log(E + 1)) time and O(V + E) extra space | Each location is processed once and each outgoing road examined once. Cheaper routes can add duplicate heap entries, giving up to O(E) entries. |
+| Bounded reachability | Dijkstra adapted to a travel budget | Expected O((V + E) log(E + 1)) time and O(V + E) extra space in the worst case | A large budget can explore the whole graph. Smaller budgets limit exploration to affordable locations and their outgoing roads. |
+
+Here, V is the number of locations and E is the number of directed connections. The search processes locations and examines their outgoing connections. The log(E + 1) factor comes from inserting and removing heap entries. The heap can contain multiple entries for a location when cheaper routes are discovered. Expected means dictionary and HashSet operations are assumed to take average O(1) time.
 
 Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
 
@@ -93,7 +98,15 @@ For Phase 4, I enabled the start-equals-goal starter test and added these cases 
 - Two disconnected locations check an unsuccessful result, empty path, zero cost and one expansion.
 - One zero-cost road checks path `[0, 1]`, zero total cost and two expansions.
 
-All enabled tests pass. Only the Phase 5 reachability starter test remains ignored because that phase has not been implemented yet.
+At the end of Phase 4, all enabled tests passed and only the Phase 5 starter test remained ignored.
+
+For Phase 5, I enabled the zero-budget starter test and added `ReachabilityQueryTests.cs`:
+
+- Zero budget includes the start at cost 0.
+- A road costing 3 is excluded with budget 2 and included with budget 3.
+- With budget 10, the query chooses the two-road route costing 2 over the direct road costing 10. A disconnected fourth location is excluded.
+
+These small graphs check budget boundaries, cheapest total costs and disconnected locations. All tests pass, with no starter tests remaining ignored.
 
 ## 6. Performance investigation
 
