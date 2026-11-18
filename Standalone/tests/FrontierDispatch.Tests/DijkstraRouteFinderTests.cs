@@ -7,6 +7,26 @@ namespace FrontierDispatch.Tests
     public sealed class  DijkstraRouteFinderTests
     {
         [Test]
+        public void UnreachableGoal_ReturnsNoRoute()
+        {
+            var locations = new Location[]
+            {
+                new Location(0, "Start", new WorldPosition(0, 0), "Town"),
+                new Location(1, "Goal", new WorldPosition(1, 0), "Town")
+            };
+
+            var world = new WorldData(locations, new Connection[0]);
+            var finder = new DijkstraRouteFinder(world);
+
+            RouteResult result = finder.FindRoute(0, 1);
+
+            Assert.That(result.Found, Is.False);
+            Assert.That(result.LocationIds, Is.Empty);
+            Assert.That(result.TotalCost, Is.EqualTo(0));
+            Assert.That(result.ExpandedCount, Is.EqualTo(1));
+        }
+
+        [Test]
         public void CheaperRouteWithMoreEdges_ReturnsMinimumCostPath()
         {
             var locations = new Location[]
