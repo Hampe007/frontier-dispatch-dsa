@@ -44,7 +44,9 @@ Enqueue appends an entry and sifts it upward. Dequeue replaces the root with the
 
 ## 3. Algorithms and adaptation
 
-Explain your route finder at a useful high level and how the travel-budget query adapts the same ideas.
+Dijkstra solves the problem of finding the cheapest route rather than the route with the fewest roads. I use my binary min-heap to process the cheapest queued location, `bestCost` to store discovered costs, and `cameFrom` to remember predecessors. A cheaper route updates both dictionaries and adds a new queue entry. A `HashSet<int>` skips locations already processed, so duplicate entries do not repeat work or increase `ExpandedCount`. Outgoing roads come from the prepared world index.
+
+With non-negative costs, a location's first processing finalizes its cheapest cost. This makes it safe to stop when the goal is processed. Following predecessors backwards and reversing the list reconstructs the route, including start and goal. Start equals goal returns a singleton path costing zero. An exhausted queue returns no route. Accumulated costs are assumed to fit in an `int`.
 
 ## 4. Complexity
 
@@ -55,7 +57,7 @@ Explain your route finder at a useful high level and how the travel-budget query
 | Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n), with O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
 | Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1). Sifting follows one path down the heap. |
 | Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
-| Route finding | | | |
+| Route finding | Dijkstra with binary min-heap and prepared outgoing lists | Expected O((V + E) log(E + 1)) time and O(V + E) extra space | Each location is processed once and each outgoing road examined once. Cheaper routes can add duplicate heap entries, giving up to O(E) entries. |
 
 Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
 
@@ -82,7 +84,16 @@ For Phase 3, I enabled the priority-queue starter test and added `MinPriorityQue
 - `DifferentInsertionOrders_DequeueInPriorityOrder`: ascending, descending, and mixed priorities are removed in ascending order, with `Count` checked after each removal.
 - `MixedOperations_PreserveMinimumAndDuplicateItems`: insertions and removals preserve the minimum, including negative priorities. Repeated `Peek` calls preserve `Count`, and distinct items with equal priorities are both returned without requiring a tie order.
 
-Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. Only the Phase 4 and Phase 5 starter tests remain skipped.
+Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. At that checkpoint, the Phase 4 and Phase 5 starter tests were still skipped.
+
+For Phase 4, I enabled the start-equals-goal starter test and added these cases in `DijkstraRouteFinderTests.cs`:
+
+- Connected routes across 5x5, 50x50 and 200x200 grids check that a route is found with the correct endpoints.
+- A hand-calculated graph checks that `0 -> 2 -> 1`, costing 2, is chosen over the direct road costing 10. It also checks three expansions.
+- Two disconnected locations check an unsuccessful result, empty path, zero cost and one expansion.
+- One zero-cost road checks path `[0, 1]`, zero total cost and two expansions.
+
+All enabled tests pass. Only the Phase 5 reachability starter test remains ignored because that phase has not been implemented yet.
 
 ## 6. Performance investigation
 
