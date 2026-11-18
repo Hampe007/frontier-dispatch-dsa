@@ -69,7 +69,7 @@ static void RunBaseline()
     Console.WriteLine($"Connections: {world.Connections.Count}");
     Console.WriteLine($"Iterations: {iterations}");
     Console.WriteLine($"World preparation: {sw1.Elapsed.TotalMilliseconds:F3} ms");
-    Console.WriteLine($"Preparation allocations: {allocatedBytesWorldCreation} bytes");
+    Console.WriteLine($"World preparation allocations: {allocatedBytesWorldCreation} bytes");
     Console.WriteLine($"Query time: {sw2.Elapsed.TotalMilliseconds:F3} ms");
     Console.WriteLine($"Query allocations: {allocatedBytesWorldQuery} bytes");
     Console.WriteLine($"Checksum: {checksum}");
