@@ -51,15 +51,15 @@ Explain your route finder at a useful high level and how the travel-budget query
 | Operation | Your representation/algorithm | Complexity | Short explanation |
 | --- | --- | --- | --- |
 | `FindLocationById(int id)` | Dictionary keyed by ID | Average O(1), worst-case O(V) | Hash lookup replaces the sequential scan. In the worst case, hash collisions can require checking up to V entries in the same bucket. |
-| `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval; O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
-| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n); O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
-| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1); sifting follows one path down the heap. |
+| `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval and O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
+| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n), with O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
+| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1). Sifting follows one path down the heap. |
 | Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
 | Route finding | | | |
 
 Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
 
-For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows; the list retains capacity after removals. Each sift uses O(1) extra space.
+For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows. The list retains capacity after removals. Each sift uses O(1) extra space.
 
 ## 5. Correctness and testing
 
@@ -102,9 +102,27 @@ dotnet run --project Standalone/src/FrontierDispatch.App -- --baseline
 | Elapsed query time | 445 ms | 403 ms | 0 ms reported (less than 1 ms) |
 | Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
 
-With only the location index, the run took 403 ms while outgoing queries still scanned all connections. With both indexes, the run reported 0 ms. The application prints `Stopwatch.ElapsedMilliseconds` in whole milliseconds, so this means the measured interval was below 1 ms, not that the queries took no time. The supplied timer was unchanged.
+With only the location index, the run took 403 ms while outgoing queries still scanned all connections. With both indexes, the run reported 0 ms. At that stage, the application printed `Stopwatch.ElapsedMilliseconds` in whole milliseconds, so this meant the measured interval was below 1 ms, not that the queries took no time. The supplied timer was unchanged for those measurements.
 
-Previously, the 5,000 outgoing queries checked 49 million connections in total. They now retrieve prepared lists, and the workload only reads each list's `Count`. The checksum remained unchanged. These are individual runs rather than a reliable estimate of the speedup. The timer excludes world construction; index preparation time and allocated bytes have not yet been measured.
+Previously, the 5,000 outgoing queries checked 49 million connections in total. They now retrieve prepared lists, and the workload only reads each list's `Count`. The checksum remained unchanged. These earlier measurements are individual runs rather than a reliable estimate of the speedup.
+
+Following CJ's Phase 6 clarification in Teams, I added a separate world preparation timer and allocation readings immediately before and after the query loop, subtracting the first reading from the second. I also measured preparation allocations and changed the timing output to `Elapsed.TotalMilliseconds:F3` to display fractions of a millisecond.
+
+I ran the improved version three times using the same command, default Debug configuration, medium world, and 5,000 iterations:
+
+| Measurement | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- |
+| World preparation | 2.002 ms | 2.053 ms | 1.977 ms |
+| Preparation allocations | 1,607,288 bytes | 1,607,288 bytes | 1,607,288 bytes |
+| Query time | 0.306 ms | 0.301 ms | 0.315 ms |
+| Query allocations | 0 bytes | 0 bytes | 0 bytes |
+| Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
+
+World preparation took 1.977-2.053 ms, while the query loop took 0.301-0.315 ms. The small timing variation was expected, and allocation counts and checksums were identical across all three runs. The preparation measurements cover creating the whole world, including both indexes and the query wrapper. They do not isolate the cost of the indexes.
+
+The query loop allocated zero bytes because the queries reuse existing location objects and prepared outgoing lists. No further query allocation reduction was necessary for this workload. Allocations have moved into preparation, where the indexes are built once for reuse. The 1,607,288 preparation bytes measure managed allocations during that interval, rather than memory retained after garbage collection.
+
+The original starter still needs to be measured with the same instrumentation, machine, build configuration, world, and iteration count. This will allow a comparison of preparation costs and query allocations. The earlier 445 ms result does not include those measurements.
 
 ## 7. Development reflection
 
