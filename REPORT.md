@@ -44,22 +44,24 @@ Enqueue appends an entry and sifts it upward. Dequeue replaces the root with the
 
 ## 3. Algorithms and adaptation
 
-Explain your route finder at a useful high level and how the travel-budget query adapts the same ideas.
+Dijkstra solves the problem of finding the cheapest route rather than the route with the fewest roads. I use my binary min-heap to process the cheapest queued location, `bestCost` to store discovered costs, and `cameFrom` to remember predecessors. A cheaper route updates both dictionaries and adds a new queue entry. A `HashSet<int>` skips locations already processed, so duplicate entries do not repeat work or increase `ExpandedCount`. Outgoing roads come from the prepared world index.
+
+With non-negative costs, a location's first processing finalizes its cheapest cost. This makes it safe to stop when the goal is processed. Following predecessors backwards and reversing the list reconstructs the route, including start and goal. Start equals goal returns a singleton path costing zero. An exhausted queue returns no route. Accumulated costs are assumed to fit in an `int`.
 
 ## 4. Complexity
 
 | Operation | Your representation/algorithm | Complexity | Short explanation |
 | --- | --- | --- | --- |
 | `FindLocationById(int id)` | Dictionary keyed by ID | Average O(1), worst-case O(V) | Hash lookup replaces the sequential scan. In the worst case, hash collisions can require checking up to V entries in the same bucket. |
-| `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval; O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
-| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n); O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
-| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1); sifting follows one path down the heap. |
+| `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval and O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
+| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n), with O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
+| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1). Sifting follows one path down the heap. |
 | Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
-| Route finding | | | |
+| Route finding | Dijkstra with binary min-heap and prepared outgoing lists | Expected O((V + E) log(E + 1)) time and O(V + E) extra space | Each location is processed once and each outgoing road examined once. Cheaper routes can add duplicate heap entries, giving up to O(E) entries. |
 
 Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
 
-For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows; the list retains capacity after removals. Each sift uses O(1) extra space.
+For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows. The list retains capacity after removals. Each sift uses O(1) extra space.
 
 ## 5. Correctness and testing
 
@@ -82,7 +84,16 @@ For Phase 3, I enabled the priority-queue starter test and added `MinPriorityQue
 - `DifferentInsertionOrders_DequeueInPriorityOrder`: ascending, descending, and mixed priorities are removed in ascending order, with `Count` checked after each removal.
 - `MixedOperations_PreserveMinimumAndDuplicateItems`: insertions and removals preserve the minimum, including negative priorities. Repeated `Peek` calls preserve `Count`, and distinct items with equal priorities are both returned without requiring a tie order.
 
-Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. Only the Phase 4 and Phase 5 starter tests remain skipped.
+Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. At that checkpoint, the Phase 4 and Phase 5 starter tests were still skipped.
+
+For Phase 4, I enabled the start-equals-goal starter test and added these cases in `DijkstraRouteFinderTests.cs`:
+
+- Connected routes across 5x5, 50x50 and 200x200 grids check that a route is found with the correct endpoints.
+- A hand-calculated graph checks that `0 -> 2 -> 1`, costing 2, is chosen over the direct road costing 10. It also checks three expansions.
+- Two disconnected locations check an unsuccessful result, empty path, zero cost and one expansion.
+- One zero-cost road checks path `[0, 1]`, zero total cost and two expansions.
+
+All enabled tests pass. Only the Phase 5 reachability starter test remains ignored because that phase has not been implemented yet.
 
 ## 6. Performance investigation
 
@@ -102,9 +113,27 @@ dotnet run --project Standalone/src/FrontierDispatch.App -- --baseline
 | Elapsed query time | 445 ms | 403 ms | 0 ms reported (less than 1 ms) |
 | Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
 
-With only the location index, the run took 403 ms while outgoing queries still scanned all connections. With both indexes, the run reported 0 ms. The application prints `Stopwatch.ElapsedMilliseconds` in whole milliseconds, so this means the measured interval was below 1 ms, not that the queries took no time. The supplied timer was unchanged.
+With only the location index, the run took 403 ms while outgoing queries still scanned all connections. With both indexes, the run reported 0 ms. At that stage, the application printed `Stopwatch.ElapsedMilliseconds` in whole milliseconds, so this meant the measured interval was below 1 ms, not that the queries took no time. The supplied timer was unchanged for those measurements.
 
-Previously, the 5,000 outgoing queries checked 49 million connections in total. They now retrieve prepared lists, and the workload only reads each list's `Count`. The checksum remained unchanged. These are individual runs rather than a reliable estimate of the speedup. The timer excludes world construction; index preparation time and allocated bytes have not yet been measured.
+Previously, the 5,000 outgoing queries checked 49 million connections in total. They now retrieve prepared lists, and the workload only reads each list's `Count`. The checksum remained unchanged. These earlier measurements are individual runs rather than a reliable estimate of the speedup.
+
+Following CJ's Phase 6 clarification in Teams, I added a separate world preparation timer and allocation readings immediately before and after the query loop, subtracting the first reading from the second. I also measured preparation allocations and changed the timing output to `Elapsed.TotalMilliseconds:F3` to display fractions of a millisecond.
+
+I ran the improved version three times using the same command, default Debug configuration, medium world, and 5,000 iterations:
+
+| Measurement | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- |
+| World preparation | 2.002 ms | 2.053 ms | 1.977 ms |
+| Preparation allocations | 1,607,288 bytes | 1,607,288 bytes | 1,607,288 bytes |
+| Query time | 0.306 ms | 0.301 ms | 0.315 ms |
+| Query allocations | 0 bytes | 0 bytes | 0 bytes |
+| Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
+
+World preparation took 1.977-2.053 ms, while the query loop took 0.301-0.315 ms. The small timing variation was expected, and allocation counts and checksums were identical across all three runs. The preparation measurements cover creating the whole world, including both indexes and the query wrapper. They do not isolate the cost of the indexes.
+
+The query loop allocated zero bytes because the queries reuse existing location objects and prepared outgoing lists. No further query allocation reduction was necessary for this workload. Allocations have moved into preparation, where the indexes are built once for reuse. The 1,607,288 preparation bytes measure managed allocations during that interval, rather than memory retained after garbage collection.
+
+The original starter still needs to be measured with the same instrumentation, machine, build configuration, world, and iteration count. This will allow a comparison of preparation costs and query allocations. The earlier 445 ms result does not include those measurements.
 
 ## 7. Development reflection
 
@@ -115,6 +144,8 @@ I first reviewed my changes and the timing code in `Program.cs`. When I could no
 I also confirmed that the timer reports whole milliseconds and excludes index construction. A result of 0 ms therefore means the measured query time was below 1 ms, not that the queries took no time. This helped me understand why i need to consider both what a workload measures and how it displays the project results in the future.
 
 While writing the priority-queue tests, I searched for a way to run multiple test cases through one test method. I found the [Adding more features section of Microsoft's NUnit tutorial](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-csharp-with-nunit#adding-more-features), which introduced me to NUnit's `[TestCase]` attribute. This made it possible for me to write `DifferentInsertionOrders_DequeueInPriorityOrder` using the same test method for ascending, descending, and mixed insertion orders. Each attribute supplies a different array to the method, while the assertions stay the same. This let me check several insertion patterns without duplicating the test code.
+
+By Phase 4 (week 5 which is last week of the course), I decided to prioritize completing the individual assignment over continuing to practice creating feature branches from each phase branch. The earlier phases had given me practice with that workflow (so I now feel a bit better at it), and I wanted to focus my remaining time on implementation, testing, and doing the report.
 
 ## 8. Tools and AI assistance
 

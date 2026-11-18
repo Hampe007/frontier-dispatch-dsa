@@ -26,7 +26,7 @@ namespace FrontierDispatch.Tests
             Assert.That(queue.Dequeue(), Is.EqualTo("cheap"));
         }
 
-        [Test, Ignore("Phase 4: enable when implementing Dijkstra route finding.")]
+        [Test]
         public void Dijkstra_StartEqualsGoal_ReturnsZeroCostRoute()
         {
             var finder = new DijkstraRouteFinder(WorldDatasetFactory.CreateSmall());
