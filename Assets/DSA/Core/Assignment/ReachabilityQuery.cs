@@ -38,7 +38,52 @@ namespace FrontierDispatch.Core
         /// </summary>
         public IReadOnlyDictionary<int, int> FindReachable(int startLocationId, int maxTravelCost)
         {
-            return null;
+
+            var costs = new Dictionary<int, int>();
+            var visited = new HashSet<int>();
+            var queue = new MinPriorityQueue<int>();
+
+            if (_world.FindLocationById(startLocationId) == null || maxTravelCost < 0) 
+            {
+                return costs;
+            }
+            
+            costs[startLocationId] = 0;
+            queue.Enqueue(startLocationId, 0);
+
+            while (queue.Count > 0)
+            {
+                int currentLocationId = queue.Dequeue();
+
+                if (visited.Contains(currentLocationId))
+                {
+                    continue;
+                }
+                
+                visited.Add(currentLocationId);
+                
+                int currentCosts = costs[currentLocationId];
+                int remainingBudget = maxTravelCost - currentCosts;
+
+                foreach (Connection connection in _world.FindOutgoingConnections(currentLocationId))
+                {
+                    if (connection.TravelCost > remainingBudget)
+                    {
+                        return costs;
+                    }
+
+                    int nextLocationId = connection.ToLocationId;
+                    int costsToNextLocation = currentCosts + connection.TravelCost;
+
+                    if (!costs.ContainsKey(nextLocationId) || costsToNextLocation < costs[nextLocationId])
+                    {
+                        costs[nextLocationId] = costsToNextLocation;
+                        queue.Enqueue(nextLocationId, costsToNextLocation);
+                    }
+                }
+            }
+            
+            return costs;
         }
     }
 }
