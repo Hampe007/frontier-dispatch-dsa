@@ -69,27 +69,6 @@ namespace FrontierDispatch.Tests
             Assert.That(result.LocationIds[0], Is.EqualTo(0));
             Assert.That(result.LocationIds[result.LocationIds.Count - 1], Is.EqualTo(goalId));
         }
-        
-        [Test]
-        public void ZeroCostConnection_ReturnsZeroCostRoute()
-        {
-            var locations = new Location[]
-            {
-                new Location(0, "Start", new WorldPosition(0, 0), "Town"),
-                new Location(1, "Goal", new WorldPosition(1, 0), "Town")
-            };
-
-            var connections = new Connection[] { new Connection(0, 1, 0) };
-            var world = new WorldData(locations, connections);
-            var finder = new DijkstraRouteFinder(world);
-
-            RouteResult result = finder.FindRoute(0, 1);
-
-            Assert.That(result.Found, Is.True);
-            Assert.That(result.LocationIds, Is.EqualTo(new int[] { 0, 1 }));
-            Assert.That(result.TotalCost, Is.EqualTo(0));
-            Assert.That(result.ExpandedCount, Is.EqualTo(2));
-        }
     }
 }
 

@@ -9,7 +9,7 @@ namespace FrontierDispatch.Core
         private readonly Location[] _locations;
         private readonly Connection[] _connections;
         private readonly Dictionary<int, Location> _locationsById;
-        private readonly Dictionary<int, List<Connection>> _outgoingByLocationId;
+        private readonly Dictionary<int, List<Connection>> _connectionsByLocationId;
         
         public WorldData(IEnumerable<Location> locations, IEnumerable<Connection> connections)
         {
@@ -18,7 +18,7 @@ namespace FrontierDispatch.Core
             _locations = new List<Location>(locations).ToArray();
             _connections = new List<Connection>(connections).ToArray();
             _locationsById = new Dictionary<int, Location>(_locations.Length);
-            _outgoingByLocationId = new Dictionary<int, List<Connection>>();
+            _connectionsByLocationId = new Dictionary<int, List<Connection>>();
             
             foreach (var location in _locations)
             {
@@ -27,13 +27,13 @@ namespace FrontierDispatch.Core
 
             foreach (var connection in _connections)
             {
-                if (!_outgoingByLocationId.TryGetValue(connection.FromLocationId, out var outgoing))
+                if (!_connectionsByLocationId.TryGetValue(connection.FromLocationId, out var connectionsFromLocation))
                 {
-                    outgoing = new List<Connection>();
-                    _outgoingByLocationId.Add(connection.FromLocationId, outgoing);
+                    connectionsFromLocation = new List<Connection>();
+                    _connectionsByLocationId.Add(connection.FromLocationId, connectionsFromLocation);
                 }
-
-                outgoing.Add(connection);
+                
+                connectionsFromLocation.Add(connection);
             }
         }
 
@@ -52,7 +52,7 @@ namespace FrontierDispatch.Core
 
         public IReadOnlyList<Connection> FindOutgoingConnections(int fromLocationId)
         {
-            if (_outgoingByLocationId.TryGetValue(fromLocationId, out var connections))
+            if (_connectionsByLocationId.TryGetValue(fromLocationId, out var connections))
             {
                 return connections;
             }

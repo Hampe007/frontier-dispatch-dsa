@@ -1,173 +1,106 @@
 # REPORT.md - Individual Assignment
 
-Keep this concise and specific to your implementation.
-
 ## 1. Initial analysis
 
-**How are locations and connections represented in the baseline?**
+- **How are locations and connections represented in the baseline?**
 
-- `WorldData` stores locations and connections in two separate arrays, exposed through `IReadOnlyList` properties. Its constructor copies the supplied collections into these arrays.
+  `WorldData` stores locations in an array and connections in another. Each connection has a starting location, an ending location, and a travel cost.
 
-**Which operations appear frequent?**
+- **Which operations appear frequent?**
 
-- The supplied baseline workload performs one location lookup and one outgoing-connection query per iteration, for 5,000 iterations.
+  Each of the 5,000 benchmark iterations looks up a location by ID and gets its outgoing connections.
 
-**Which operation(s) do you predict may scale poorly?**
+- **Which operation(s) do you predict may scale poorly?**
 
-- `FindLocationById` searches the locations sequentially until it finds a matching ID. Its worst-case time complexity is O(V), where V is the number of vertices (locations).
+  Looking up a location can require checking every location. Getting outgoing connections checks every connection and creates a new list every time. Both queries do more work as the world grows.
 
-- `FindOutgoingConnections` scans the entire connections array and collects matching connections in a new list. Its time complexity is O(E), where E is the number of edges (connections) in the world graph. Each call also allocates a result list.
+- **What will you investigate first?**
 
-- These repeated scans are likely to become expensive as the world grows.
-
-**What will you investigate first?**
-
-- I will investigate these two queries first because both run 5,000 times in the baseline workload. Each query spends time checking entries that are unrelated to the requested location. Storing locations in a dictionary keyed by ID should allow average O(1) lookups. Grouping connections by their source location should let us retrieve the relevant list directly, avoiding a full scan and a new result list for every query. I expect this to reduce query time and allocations, at the cost of extra memory and time to prepare the data. I will measure these costs alongside the query improvements to see whether the changes benefit the workload overall.
+  I would start with the outgoing query because it scans every connection even when the caller only needs the count. Grouping connections by their starting location should make repeated queries cheaper.
 
 ## 2. Data representation
 
-The `WorldData` constructor builds a private `Dictionary<int, Location>` named `_locationsById`. Each key is a location ID, and its value references the corresponding `Location` object. The original location and connection arrays remain available for iteration.
+I kept both arrays so the program can still go through every location or connection. I added one dictionary that maps each location ID to its location and another that maps each source ID to its outgoing connections. The outgoing lists keep their original order. A missing location gives `null`, and a source with no outgoing connections gives an empty list.
 
-The `WorldQueries.FindLocationById(int id)` method now calls `WorldData.FindLocationById(int id)`. That method searches the prepared dictionary using `TryGetValue` and returns the matching `Location`, or `null` if the ID is missing. Calling `Add` while building the dictionary rejects duplicate IDs by throwing an `ArgumentException`.
+I build both dictionaries when the world is created. This takes extra time and memory up front. The world queries, route finder, and movement range query can then reuse the same data.
 
-The location index is built once and reused by queries. It provides average O(1) lookup at the cost of expected O(V) preparation time and O(V) extra storage. The dictionary references existing objects rather than copying them.
-
-The constructor also builds `_outgoingByLocationId`, a private `Dictionary<int, List<Connection>>`. Each source location ID maps to a list of its outgoing connections. Connections are added in their original array order, preserving the order returned by the baseline.
-
-The `WorldQueries.FindOutgoingConnections(int fromLocationId)` method now calls the matching method on `WorldData`. It retrieves the prepared list using `TryGetValue`, or returns `Array.Empty<Connection>()` when no connections match. The return type remains `IReadOnlyList<Connection>`. Queries reuse the lists instead of scanning all connections and allocating a new result list each time. Preparing this index takes expected O(E) time and extra storage for the lists and their connection references.
-
-The `MinPriorityQueue<T>` stores a binary min-heap in a private `List<Entry>`. Each entry pairs an item with its integer priority, so moving an entry keeps the item and priority together. The root at index 0 contains an item with the lowest priority.
-
-The position of an entry in the list is its index. For an entry at `index`, its parent is at `(index - 1) / 2` using integer division, provided the entry is not the root. Its left child is at `2 * index + 1`, and its right child is at `2 * index + 2`, if those positions exist in the list. Each parent has a priority less than or equal to the priorities of its children. This keeps the minimum at the root without sorting the entire list. Equal priorities are allowed without guaranteeing their removal order.
-
-Enqueue appends an entry and sifts it upward. Dequeue replaces the root with the last entry, removes the last slot, and sifts the replacement down through the smaller child. The list provides indexed access without separate node objects and links, but its backing array may have unused capacity and must copy entries when it grows.
+The priority queue stores items and their priorities in a list arranged as a binary min-heap. Each parent has a priority less than or equal to its children's. When the heap has items, the root holds an item with the smallest priority. When I add an item, it moves up until the rule holds. When I remove the root, the last item takes its place and moves down as needed. Items can share a priority and can come out in either order.
 
 ## 3. Algorithms and adaptation
 
-Dijkstra solves the problem of finding the cheapest route rather than the route with the fewest roads. I use my binary min-heap to process the cheapest queued location, `bestCost` to store discovered costs, and `cameFrom` to remember predecessors. A cheaper route updates both dictionaries and adds a new queue entry. A `HashSet<int>` skips locations already processed, so duplicate entries do not repeat work or increase `ExpandedCount`. Outgoing roads come from the prepared world index.
+Dijkstra starts by putting the start location in the heap at cost 0. The heap gives me the next location with the lowest queued cost. For each outgoing connection, I add its travel cost to the cost of getting to the current location. If this gives a cheaper route to the next location, I save the new cost and the previous location, then add a new heap entry.
 
-With non-negative costs, a location's first processing finalizes its cheapest cost. This makes it safe to stop when the goal is processed. Following predecessors backwards and reversing the list reconstructs the route, including start and goal. Start equals goal returns a singleton path costing zero. An exhausted queue returns no route. Accumulated costs are assumed to fit in an `int`.
+Travel costs are non-negative, so the first time a location comes out of the heap, its cheapest cost is known. A visited set lets me skip later entries for that location and count it only once. When I reach the goal, I follow the saved locations back to the start and reverse the path. If the start is the goal, the path contains just the start and costs 0. If the heap empties first, there is no route. Though, its important to mention that the route finder assumes valid location IDs and travel totals that fit in an `int`.
 
-For movement range, I adapted Dijkstra to explore all affordable locations instead of stopping at one goal. The query keeps `bestCost`, the heap, the visited set and the prepared outgoing lists, but needs no predecessors or path reconstruction. Before adding a road's cost, it checks whether the road fits the remaining budget. This includes exact-budget routes and avoids integer overflow. With non-negative costs, an over-budget route cannot become affordable by continuing. The result maps each reachable location to its cheapest cost. Missing starts or negative budgets return an empty dictionary.
+The movement range query uses the same heap and cost tracking. The goal is to return every location within the budget along with its cheapest cost. It does not need to save the path. A connection fits if its cost is less than or equal to the remaining budget. A missing start or a negative budget gives an empty result. If a connection is too expensive, the query skips it and checks the remaining connections.
 
 ## 4. Complexity
 
-| Operation | Your representation/algorithm | Complexity | Short explanation |
-| --- | --- | --- | --- |
-| `FindLocationById(int id)` | Dictionary keyed by ID | Average O(1), worst-case O(V) | Hash lookup replaces the sequential scan. In the worst case, hash collisions can require checking up to V entries in the same bucket. |
-| `FindOutgoingConnections(int fromLocationId)` | Dictionary of lists keyed by source ID | Average O(1) retrieval and O(k) iteration | Returns the prepared list directly. Iterating it visits its k connections. Worst-case lookup is O(V) if hash collisions require checking all source entries. |
-| Priority queue enqueue | Append and sift up in a binary heap | Amortized O(log n), with O(n) for an insertion that grows the list | Sifting visits at most the heap height. List growth copies existing entries. |
-| Priority queue dequeue-min | Replace root with last entry and sift down | O(log n) | Removing the last slot is O(1). Sifting follows one path down the heap. |
-| Priority queue Peek / Count | Read root / list count | O(1) | Neither operation traverses the heap. |
-| Route finding | Dijkstra with binary min-heap and prepared outgoing lists | Expected O((V + E) log(E + 1)) time and O(V + E) extra space | Each location is processed once and each outgoing road examined once. Cheaper routes can add duplicate heap entries, giving up to O(E) entries. |
-| Bounded reachability | Dijkstra adapted to a travel budget | Expected O((V + E) log(E + 1)) time and O(V + E) extra space in the worst case | A large budget can explore the whole graph. Smaller budgets limit exploration to affordable locations and their outgoing roads. |
+V is the number of locations, E is the number of connections, and n is the number of items in the heap. Expected times assume dictionary and set lookups take constant time on average.
 
-Here, V is the number of locations and E is the number of directed connections. The search processes locations and examines their outgoing connections. The log(E + 1) factor comes from inserting and removing heap entries. The heap can contain multiple entries for a location when cheaper routes are discovered. Expected means dictionary and HashSet operations are assumed to take average O(1) time.
+| Operation / workload | Before | After | Expected complexity | Reason / interpretation |
+| --- | --- | --- | --- | --- |
+| Find a location by ID | Scan up to all V locations | Look up the ID in a dictionary | Expected O(1) | With well distributed hashes, the dictionary usually checks only a few entries. Many keys with the same hash can make a lookup take longer. |
+| Get outgoing connections | Scan all E connections and build a list | Look up a prepared list by source ID | Expected O(1) to get the list | One dictionary lookup returns the prepared list. Hash collisions can add comparisons, and reading the entire list takes time proportional to the number of outgoing connections from that location. |
+| Add to the priority queue | Starter method left incomplete | Append and move the item up the heap | O(log n) when the list has room | A binary heap has about log n levels. The new item follows at most one path up and can stop sooner if it is already in order. If the list grows, copying its items can make the insertion take O(n). |
+| Remove the minimum | Starter method left incomplete | Replace the root and move the replacement down | O(log n) | Removing the last list entry takes constant time. The replacement follows at most one path down the heap, which has about log n levels. With one item, there is no need to move anything down. |
+| Peek at the next item | Starter method left incomplete | Check the count and read the root | O(1) when the queue has items | Peek checks the stored count and reads the first list entry, so the work stays the same as the queue grows. If the queue is empty, it throws after checking the count. |
+| Get the queue count | Use the list count | Use the list count | O(1) | The list updates its stored count as items are added or removed. Reading it takes the same amount of work regardless of how many items are in the list. |
+| Find a route | Starter method left incomplete | Run Dijkstra with a binary min-heap | Expected O((V + E) log V) on the supplied grids | The search checks each outgoing connection at most once and can add a heap entry when it finds a cheaper path. With at most four outgoing connections per location on these grids, the heap grows at most in proportion to V, so each heap operation takes up to O(log V) time. Reaching the goal early can cut the search short. |
+| Find locations within a budget | Starter method left incomplete | Run Dijkstra with a travel budget | Expected O((V + E) log V) on the supplied grids (same as the one above) | It uses the same heap and checks outgoing connections from each location it visits. A smaller budget can limit how many locations reach the heap. A large enough budget can let the search visit the entire grid. |
 
-Preparing the location index takes expected O(V) time and O(V) additional storage. Preparing the outgoing index takes expected O(E) time and O(V + E) additional storage for valid worlds: at most V source entries plus E connection references. Together, the indexes take expected O(V + E) preparation time and O(V + E) extra storage.
-
-For the priority queue, n is the number of stored entries. The heap uses O(n) storage as it grows. The list retains capacity after removals. Each sift uses O(1) extra space.
+The indexes take expected O(V + E) time to build and use O(V + E) extra space. The searches also use up to O(V + E) extra space to keep track of locations and hold candidates in the heap.
 
 ## 5. Correctness and testing
 
-The existing tests in `WorldQueriesTests.cs` check that `FindLocationById` returns the matching location for a nonconsecutive ID and returns `null` for a missing ID. They also check that `FindOutgoingConnections` returns only connections with the requested origin.
+I ran `dotnet test Standalone/FrontierDispatch.sln` and all 24 tests passed, with none skipped/ignored.
 
-Added tests cover the following cases:
+The starter package supplied world query tests and three tests for later phases. I enabled those three tests to check that the heap removes the lowest priority first, that a route from a location to itself costs 0, and that a zero budget includes the starting location.
 
-- `FindLocationById_EmptyWorld_ReturnsNull`: looking up an ID in an empty world returns `null`.
-- `WorldData_DuplicateLocationId_ThrowsArgumentException`: constructing `WorldData` with duplicate location IDs throws an `ArgumentException`.
-- `FindOutgoingConnections_UnknownSource_ReturnsEmpty`: an unknown source ID returns an empty collection.
-- `FindOutgoingConnections_LocationWithNoOutgoing_ReturnsEmpty`: an existing location without outgoing connections returns an empty collection.
-- `FindOutgoingConnections_MixedSources_PreservesMatchingOrder`: connections from other sources are excluded, and matching connections retain their original order.
+Here are three of the tests I added.
 
-Before Phase 3, the test suite produced **8 passed, 3 skipped, 0 failed**.
-
-For Phase 3, I enabled the priority-queue starter test and added `MinPriorityQueueTests.cs`:
-
-- `EmptyQueue_PeekAndDequeueThrow`: `Peek` and `Dequeue` throw `InvalidOperationException` for an empty queue, and `Count` remains zero.
-- `SingleItem_CanBeRemovedAndQueueReused`: repeated insertion and removal works after the queue becomes empty, and `Peek` leaves `Count` unchanged.
-- `DifferentInsertionOrders_DequeueInPriorityOrder`: ascending, descending, and mixed priorities are removed in ascending order, with `Count` checked after each removal.
-- `MixedOperations_PreserveMinimumAndDuplicateItems`: insertions and removals preserve the minimum, including negative priorities. Repeated `Peek` calls preserve `Count`, and distinct items with equal priorities are both returned without requiring a tie order.
-
-Running `dotnet test FrontierDispatch.sln` from the `Standalone` directory after these additions produced **15 passed, 2 skipped, 0 failed**. At that checkpoint, the Phase 4 and Phase 5 starter tests were still skipped.
-
-For Phase 4, I enabled the start-equals-goal starter test and added these cases in `DijkstraRouteFinderTests.cs`:
-
-- Connected routes across 5x5, 50x50 and 200x200 grids check that a route is found with the correct endpoints.
-- A hand-calculated graph checks that `0 -> 2 -> 1`, costing 2, is chosen over the direct road costing 10. It also checks three expansions.
-- Two disconnected locations check an unsuccessful result, empty path, zero cost and one expansion.
-- One zero-cost road checks path `[0, 1]`, zero total cost and two expansions.
-
-At the end of Phase 4, all enabled tests passed and only the Phase 5 starter test remained ignored.
-
-For Phase 5, I enabled the zero-budget starter test and added `ReachabilityQueryTests.cs`:
-
-- Zero budget includes the start at cost 0.
-- A road costing 3 is excluded with budget 2 and included with budget 3.
-- With budget 10, the query chooses the two-road route costing 2 over the direct road costing 10. A disconnected fourth location is excluded.
-
-These small graphs check budget boundaries, cheapest total costs and disconnected locations. All tests pass, with no starter tests remaining ignored.
+| Test | Why I added it | Expected and observed result |
+| --- | --- | --- |
+| Cheaper route with more roads | Check that Dijkstra chooses a route by total travel cost. | I expected the two-road route costing 2 to beat the direct road costing 10. The route finder returned the two-road route with a total cost of 2. |
+| Budget boundary | Check what happens when a road costs exactly as much as the budget. | I expected a road costing 3 to be excluded with a budget of 2 and included with a budget of 3. The query did both. |
+| Heap insertion order | Check that the lowest priority comes out first regardless of insertion order. | I expected the first removal to return 1. It did for ascending, descending, and mixed inputs. |
 
 ## 6. Performance investigation
 
-The starter restored and built successfully. Tests: 3 passed, 3 skipped, 0 failed.
+| Measurement | Starter | Completed version |
+| --- | ---: | ---: |
+| World preparation time, median of five runs | 1.613 ms | 2.292 ms |
+| World preparation time, range | 1.461 to 1.688 ms | 1.986 to 2.400 ms |
+| Preparation allocations per run | 1,093,072 bytes | 1,607,288 bytes |
+| Repeated query time, median of five runs | 450.367 ms | 0.312 ms |
+| Repeated query time, range | 441.974 to 450.808 ms | 0.308 to 0.458 ms |
+| Query allocations per run | 440,000 bytes | 0 bytes |
+| Checksum on every run | 6,267,100 | 6,267,100 |
 
-Run from the repository root in Windows PowerShell using the default Debug configuration:
+I used the same measurement code in both versions and ran each version five times. I timed world preparation separately from the repeated queries so it was possible to see the cost of building the indexes and the time spent using them. I took the allocation reading before and after each part to be able to calculate the difference. The table shows the median along with the range of the five timings.
 
-```powershell
-dotnet run --project Standalone/src/FrontierDispatch.App -- --baseline
-```
+The completed version made the repeated queries faster in this benchmark. Median query time fell from 450.367 ms to 0.312 ms, and query allocations fell from 440 000 bytes to 0 bytes. The indexes let each query reuse the outgoing connections prepared when the world was built. Even the slowest query run with indexes was faster than the fastest starter run. Preparation showed the reverse pattern. Every run with indexes took longer to prepare than every starter run. The matching checksum shows that both versions produced the same combined total from the location IDs and outgoing connection counts.
 
-| Measurement | Original baseline | Location index only | Both indexes |
-| --- | --- | --- | --- |
-| Locations (V) | 2,500 | 2,500 | 2,500 |
-| Connections (E) | 9,800 | 9,800 | 9,800 |
-| Iterations | 5,000 | 5,000 | 5,000 |
-| Elapsed query time | 445 ms | 403 ms | 0 ms reported (less than 1 ms) |
-| Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
+That improvement came with a higher preparation cost. Median preparation time rose by 0.679 ms, and preparation allocated 514 216 more bytes. Even with fewer query allocations, the two measured parts together allocated 74 216 more bytes. The benchmark supports using the indexes when the same world is queried repeatedly. Its results cover world preparation and lookups.
 
-With only the location index, the run took 403 ms while outgoing queries still scanned all connections. With both indexes, the run reported 0 ms. At that stage, the application printed `Stopwatch.ElapsedMilliseconds` in whole milliseconds, so this meant the measured interval was below 1 ms, not that the queries took no time. The supplied timer was unchanged for those measurements.
-
-Previously, the 5,000 outgoing queries checked 49 million connections in total. They now retrieve prepared lists, and the workload only reads each list's `Count`. The checksum remained unchanged. These earlier measurements are individual runs rather than a reliable estimate of the speedup.
-
-Following CJ's Phase 6 clarification in Teams, I added a separate world preparation timer and allocation readings immediately before and after the query loop, subtracting the first reading from the second. I also measured preparation allocations and changed the timing output to `Elapsed.TotalMilliseconds:F3` to display fractions of a millisecond.
-
-I ran the improved version three times using the same command, default Debug configuration, medium world, and 5,000 iterations:
-
-| Measurement | Run 1 | Run 2 | Run 3 |
-| --- | --- | --- | --- |
-| World preparation | 2.002 ms | 2.053 ms | 1.977 ms |
-| Preparation allocations | 1,607,288 bytes | 1,607,288 bytes | 1,607,288 bytes |
-| Query time | 0.306 ms | 0.301 ms | 0.315 ms |
-| Query allocations | 0 bytes | 0 bytes | 0 bytes |
-| Checksum | 6,267,100 | 6,267,100 | 6,267,100 |
-
-World preparation took 1.977-2.053 ms, while the query loop took 0.301-0.315 ms. The small timing variation was expected, and allocation counts and checksums were identical across all three runs. The preparation measurements cover creating the whole world, including both indexes and the query wrapper. They do not isolate the cost of the indexes.
-
-The query loop allocated zero bytes because the queries reuse existing location objects and prepared outgoing lists. No further query allocation reduction was necessary for this workload. Allocations have moved into preparation, where the indexes are built once for reuse. The 1,607,288 preparation bytes measure managed allocations during that interval, rather than memory retained after garbage collection.
-
-The original starter still needs to be measured with the same instrumentation, machine, build configuration, world, and iteration count. This will allow a comparison of preparation costs and query allocations. The earlier 445 ms result does not include those measurements.
+A short scan may still be cheaper for a small world or only a few queries. But it may be more efficent if we would use larger worlds, but to confirm that, I would need to measure how preparation time and memory use grow.
 
 ## 7. Development reflection
 
-I was surprised when the workload reported 0 ms after adding the outgoing-connection index. I expected the queries to become faster, but the size of the drop made me question whether the measurement was correct.
+I chose to redo the assignment scripts to see whether I could build them without relying on AI, and very much minimize googeling. I used what I had learned in the labs and during the assignment, discussed ideas with others (Simon primarly now during when I did the rework), and used Ctrl+click in Rider to read method definitions (that I were unsure of how they were setup). By rebuilding the scripts, it helped me check that I could apply and explain what I have learnt.
 
-I first reviewed my changes and the timing code in `Program.cs`. When I could not explain the result, I asked AI to guide me with questions so I could work through the reasoning myself. The workload previously checked 49 million connections. With the prepared indexes, it instead performs dictionary lookups and reads each outgoing list's `Count`.
+I found a reachability bug while writing the report. I meant to skip any road that was too expensive, but I used `return` inside the loop. That ended the whole search before it could check the other roads. The original budget test used only one road, so it passed either way. The fix uses `continue` instead to skip the expensive road and check the next one.
 
-I also confirmed that the timer reports whole milliseconds and excludes index construction. A result of 0 ms therefore means the measured query time was below 1 ms, not that the queries took no time. This helped me understand why i need to consider both what a workload measures and how it displays the project results in the future.
-
-While writing the priority-queue tests, I searched for a way to run multiple test cases through one test method. I found the [Adding more features section of Microsoft's NUnit tutorial](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-csharp-with-nunit#adding-more-features), which introduced me to NUnit's `[TestCase]` attribute. This made it possible for me to write `DifferentInsertionOrders_DequeueInPriorityOrder` using the same test method for ascending, descending, and mixed insertion orders. Each attribute supplies a different array to the method, while the assertions stay the same. This let me check several insertion patterns without duplicating the test code.
-
-By Phase 4 (week 5 which is last week of the course), I decided to prioritize completing the individual assignment over continuing to practice creating feature branches from each phase branch. The earlier phases had given me practice with that workflow (so I now feel a bit better at it), and I wanted to focus my remaining time on implementation, testing, and doing the report.
+In an earlier version (the old code), I was surprised when the benchmark displayed 0 ms after I added the outgoing connection index. I checked `Program.cs` and found that the timer only covered the query loop and displayed whole milliseconds. The queries took less than 1 ms, and the index was built before the timer started. This made me more aware of what to check when a benchmark measures to more easily find the cause of the confusion.
 
 ## 8. Tools and AI assistance
 
-Briefly describe relevant assistance, if any.
+I used AI to clarify the previous REPORT.md, from questioning me and helping me formulate notes better during my process which I had use for now when filling in this report (where the old one was before I emptied the file). 
 
-- After my changes, I noticed the baseline time dropped from 445 ms to 0 ms. I used AI to help investigate this unexpected drop, which guided me to discover that reusing the outgoing lists eliminated 49 million connection checks, leaving dictionary lookups and reads of each outgoing list's `Count`. Since index construction happens outside the timer and we use `sw.ElapsedMilliseconds` to display the result, this explains why the measured time dropped below 1 ms and why it displayed as 0 ms.
+My old code was written by me, but then AI was asked to poke holes through my line of thinking and question me into making the code better which helped me get a better grip of some of the theories discussed during the DSA course. But this caused me to in the end do what I stated in previous segment of choosing to redo it without AI.  
 
-- I have also started to use AI to review my report and give feedback and comments on what I had written like a "critic", including suggestions for improvement and things to consider in future work when documenting my work.
+When the earlier benchmark (old code) displayed 0 ms, I asked AI to guide me with questions when I got lost, as I started to doubt my own code before thinking that the collecting of stats in the baseline was what caused it. So AI helped me by telling me just some things to draw up and left me to trace it from there to figure out what went wrong which lead me to cause previously mentioned.
 
 ## 9. VG extension
 
-Only if attempting VG: heuristic, traversal constraints, correctness, and Dijkstra/A* comparison.
+Not applicable, did not attempt VG due to time constraints :)

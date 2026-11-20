@@ -34,67 +34,60 @@ namespace FrontierDispatch.Core
         /// </summary>
         public RouteResult FindRoute(int startLocationId, int goalLocationId)
         {
-            if (_world.FindLocationById(startLocationId) == null || _world.FindLocationById(goalLocationId) == null)
-            {
-                return new RouteResult(false, Array.Empty<int>(), 0, 0);
-            }
-
-            if (startLocationId == goalLocationId)
-            {
-                return new RouteResult(true, new[] { startLocationId }, 0, 0);
-            }
-
-            var bestCost = new Dictionary<int, int>();
-            var cameFrom = new Dictionary<int, int>();
+            var costs = new Dictionary<int, int>();
+            var previousLocation = new Dictionary<int, int>();
             var visited = new HashSet<int>();
-            var frontier = new MinPriorityQueue<int>();
+            var queue = new MinPriorityQueue<int>();
 
-            bestCost[startLocationId] = 0;
-            frontier.Enqueue(startLocationId, 0);
+            int expandedNodesCount = 0;
 
-            int expandedCount = 0;
+            costs[startLocationId] = 0;
+            queue.Enqueue(startLocationId, 0);
 
-            while (frontier.Count > 0)
+            while (queue.Count > 0)
             {
-                int current = frontier.Dequeue();
-                
-                if (!visited.Add(current))
+                int currentLocationId = queue.Dequeue();
+
+                if (visited.Contains(currentLocationId))
                 {
                     continue;
                 }
+                
+                visited.Add(currentLocationId);
+                expandedNodesCount++;
 
-                expandedCount++;
-
-                if (current == goalLocationId)
+                if (currentLocationId == goalLocationId)
                 {
-                    var path = new List<int> { goalLocationId };
-                    int node = goalLocationId;
-                    
-                    while (node != startLocationId)
+                    var path = new List<int>();
+
+                    int pathLocationId = goalLocationId;
+
+                    while (pathLocationId != startLocationId)
                     {
-                        node = cameFrom[node];
-                        path.Add(node);
+                        path.Add(pathLocationId);
+                        pathLocationId = previousLocation[pathLocationId];
                     }
 
+                    path.Add(startLocationId);
                     path.Reverse();
-                    return new RouteResult(true, path, bestCost[goalLocationId], expandedCount);
+                    return new RouteResult(true, path, costs[goalLocationId], expandedNodesCount);
                 }
-
-                foreach (Connection connection in _world.FindOutgoingConnections(current))
+                
+                foreach (Connection connection in _world.FindOutgoingConnections(currentLocationId))
                 {
-                    int candidate = bestCost[current] + connection.TravelCost;
-
-                    if (!bestCost.TryGetValue(connection.ToLocationId, out int knownCost) || candidate < knownCost)
+                    int nextLocationId = connection.ToLocationId;
+                    int costToNextLocation = costs[currentLocationId] + connection.TravelCost;
+                    
+                    if (!costs.ContainsKey(nextLocationId) || costToNextLocation < costs[nextLocationId])
                     {
-                        bestCost[connection.ToLocationId] = candidate;
-                        cameFrom[connection.ToLocationId] = current;
-
-                        frontier.Enqueue(connection.ToLocationId, candidate);
+                        costs[nextLocationId] = costToNextLocation;
+                        previousLocation[nextLocationId] = currentLocationId;
+                        queue.Enqueue(nextLocationId, costToNextLocation);
                     }
                 }
             }
-
-            return new RouteResult(false, Array.Empty<int>(), 0, expandedCount);
+            
+            return new RouteResult(false, new List<int>(), 0, expandedNodesCount);
         }
     }
 }

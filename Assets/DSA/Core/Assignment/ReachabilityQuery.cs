@@ -38,48 +38,52 @@ namespace FrontierDispatch.Core
         /// </summary>
         public IReadOnlyDictionary<int, int> FindReachable(int startLocationId, int maxTravelCost)
         {
-            var bestCost = new Dictionary<int, int>();
 
-            if (_world.FindLocationById(startLocationId) == null || maxTravelCost < 0)
-            {
-                return bestCost;
-            }
-
+            var costs = new Dictionary<int, int>();
             var visited = new HashSet<int>();
-            var frontier = new MinPriorityQueue<int>();
+            var queue = new MinPriorityQueue<int>();
 
-            bestCost[startLocationId] = 0;
-            frontier.Enqueue(startLocationId, 0);
-
-            while (frontier.Count > 0)
+            if (_world.FindLocationById(startLocationId) == null || maxTravelCost < 0) 
             {
-                int current = frontier.Dequeue();
+                return costs;
+            }
+            
+            costs[startLocationId] = 0;
+            queue.Enqueue(startLocationId, 0);
 
-                if (!visited.Add(current))
+            while (queue.Count > 0)
+            {
+                int currentLocationId = queue.Dequeue();
+
+                if (visited.Contains(currentLocationId))
                 {
                     continue;
                 }
+                
+                visited.Add(currentLocationId);
+                
+                int currentCosts = costs[currentLocationId];
+                int remainingBudget = maxTravelCost - currentCosts;
 
-                foreach (Connection connection in _world.FindOutgoingConnections(current))
+                foreach (Connection connection in _world.FindOutgoingConnections(currentLocationId))
                 {
-                    int remainingBudget = maxTravelCost - bestCost[current];
-
                     if (connection.TravelCost > remainingBudget)
                     {
                         continue;
                     }
 
-                    int candidate = bestCost[current] + connection.TravelCost;
+                    int nextLocationId = connection.ToLocationId;
+                    int costsToNextLocation = currentCosts + connection.TravelCost;
 
-                    if (!bestCost.TryGetValue(connection.ToLocationId, out int knownCost) || candidate < knownCost)
+                    if (!costs.ContainsKey(nextLocationId) || costsToNextLocation < costs[nextLocationId])
                     {
-                        bestCost[connection.ToLocationId] = candidate;
-                        frontier.Enqueue(connection.ToLocationId, candidate);
+                        costs[nextLocationId] = costsToNextLocation;
+                        queue.Enqueue(nextLocationId, costsToNextLocation);
                     }
                 }
             }
             
-            return bestCost;
+            return costs;
         }
     }
 }
