@@ -69,7 +69,7 @@ namespace FrontierDispatch.Core
                 {
                     if (connection.TravelCost > remainingBudget)
                     {
-                        return costs;
+                        continue;
                     }
 
                     int nextLocationId = connection.ToLocationId;
