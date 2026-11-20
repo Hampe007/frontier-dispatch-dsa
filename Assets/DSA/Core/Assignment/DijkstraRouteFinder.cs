@@ -34,67 +34,10 @@ namespace FrontierDispatch.Core
         /// </summary>
         public RouteResult FindRoute(int startLocationId, int goalLocationId)
         {
-            if (_world.FindLocationById(startLocationId) == null || _world.FindLocationById(goalLocationId) == null)
-            {
-                return new RouteResult(false, Array.Empty<int>(), 0, 0);
-            }
-
-            if (startLocationId == goalLocationId)
-            {
-                return new RouteResult(true, new[] { startLocationId }, 0, 0);
-            }
-
-            var bestCost = new Dictionary<int, int>();
-            var cameFrom = new Dictionary<int, int>();
-            var visited = new HashSet<int>();
-            var frontier = new MinPriorityQueue<int>();
-
-            bestCost[startLocationId] = 0;
-            frontier.Enqueue(startLocationId, 0);
-
-            int expandedCount = 0;
-
-            while (frontier.Count > 0)
-            {
-                int current = frontier.Dequeue();
-                
-                if (!visited.Add(current))
-                {
-                    continue;
-                }
-
-                expandedCount++;
-
-                if (current == goalLocationId)
-                {
-                    var path = new List<int> { goalLocationId };
-                    int node = goalLocationId;
-                    
-                    while (node != startLocationId)
-                    {
-                        node = cameFrom[node];
-                        path.Add(node);
-                    }
-
-                    path.Reverse();
-                    return new RouteResult(true, path, bestCost[goalLocationId], expandedCount);
-                }
-
-                foreach (Connection connection in _world.FindOutgoingConnections(current))
-                {
-                    int candidate = bestCost[current] + connection.TravelCost;
-
-                    if (!bestCost.TryGetValue(connection.ToLocationId, out int knownCost) || candidate < knownCost)
-                    {
-                        bestCost[connection.ToLocationId] = candidate;
-                        cameFrom[connection.ToLocationId] = current;
-
-                        frontier.Enqueue(connection.ToLocationId, candidate);
-                    }
-                }
-            }
-
-            return new RouteResult(false, Array.Empty<int>(), 0, expandedCount);
+            
+            
+            
+            throw new NotImplementedException();
         }
     }
 }

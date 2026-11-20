@@ -29,23 +29,7 @@ namespace FrontierDispatch.Core
         public void Enqueue(T item, int priority)
         {
             _heap.Add(new Entry(item, priority));
-            int index = _heap.Count - 1;
-
-            while (index > 0)
-            {
-                int parent = (index - 1) / 2;
-
-                if (_heap[parent].Priority <= _heap[index].Priority)
-                {
-                    break;
-                }
-                
-                Entry temp = _heap[parent]; 
-                _heap[parent] = _heap[index];
-                _heap[index] = temp;
-                
-                index = parent;
-            }
+            SiftUp(_heap.Count - 1);
         }
 
         /// <summary>
@@ -77,44 +61,78 @@ namespace FrontierDispatch.Core
                 throw new InvalidOperationException("The queue is empty.");
             }
             
-            T item = _heap[0].Item;
+            Entry result = _heap[0];
             int lastIndex = _heap.Count - 1;
             _heap[0] = _heap[lastIndex];
             _heap.RemoveAt(lastIndex);
-            int index = 0;
-
-            while (true)
-            {
-                int left = 2 * index + 1;
-                int right = left + 1;
-
-                if (left >= _heap.Count)
-                {
-                    break;
-                }
-
-                int smallerChild = left;
-
-                if (right < _heap.Count && _heap[right].Priority < _heap[left].Priority)
-                {
-                    smallerChild = right;
-                }
-
-                if (_heap[index].Priority <= _heap[smallerChild].Priority)
-                {
-                    break;
-                }
-
-                Entry temp = _heap[index];
-                _heap[index] = _heap[smallerChild];
-                _heap[smallerChild] = temp;
-
-                index = smallerChild;
-            }
             
-            return item;
+            if (_heap.Count > 0)
+            {
+                SiftDown(0);
+            }
+
+            return result.Item;
         }
 
+        private void SiftUp(int index)
+        {
+            while (index > 0)
+            {
+                int parentIndex = ParentIndex(index);
+                if (_heap[parentIndex].Priority <= _heap[index].Priority)
+                {
+                    break;
+                }
+
+                Swap(index, parentIndex);
+                index = parentIndex;
+            }
+        }
+
+        private void SiftDown(int index)
+        {
+            while (LeftChildIndex(index) < _heap.Count)
+            {
+                int smallerChildIndex = LeftChildIndex(index);
+                int rightChildIndex = RightChildIndex(index);
+
+                if (rightChildIndex < _heap.Count && _heap[rightChildIndex].Priority < _heap[smallerChildIndex].Priority)
+                {
+                    smallerChildIndex = rightChildIndex;
+                }
+
+                if (_heap[index].Priority <= _heap[smallerChildIndex].Priority)
+                {
+                    break;
+                }
+
+                Swap(index, smallerChildIndex);
+                index = smallerChildIndex;
+            }
+        }
+
+        private static int ParentIndex(int index)
+        {
+            return (index - 1) / 2;
+        }
+        
+        private static int LeftChildIndex(int index)
+        {
+            return 2 * index + 1;
+        }
+        
+        private static int RightChildIndex(int index)
+        {
+            return 2 * index + 2;
+        }
+
+        private void Swap(int indexA, int indexB)
+        {
+            Entry tempSwap = _heap[indexA];
+            _heap[indexA] = _heap[indexB];
+            _heap[indexB] = tempSwap;
+        }
+        
         /// <summary>
         /// Stores one item together with the priority used by the heap.
         /// </summary>
