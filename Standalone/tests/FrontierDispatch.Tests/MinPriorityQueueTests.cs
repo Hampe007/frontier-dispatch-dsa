@@ -46,7 +46,8 @@ namespace FrontierDispatch.Tests
                 queue.Enqueue(priority, priority);
             }
             
-            Assert.That(queue.Dequeue(), Is.EqualTo(1));
+            var actual = queue.Dequeue();
+            Assert.That(actual, Is.EqualTo(1));
         }
     }
 }

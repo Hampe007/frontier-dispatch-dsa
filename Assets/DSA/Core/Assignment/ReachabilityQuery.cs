@@ -38,48 +38,7 @@ namespace FrontierDispatch.Core
         /// </summary>
         public IReadOnlyDictionary<int, int> FindReachable(int startLocationId, int maxTravelCost)
         {
-            var bestCost = new Dictionary<int, int>();
-
-            if (_world.FindLocationById(startLocationId) == null || maxTravelCost < 0)
-            {
-                return bestCost;
-            }
-
-            var visited = new HashSet<int>();
-            var frontier = new MinPriorityQueue<int>();
-
-            bestCost[startLocationId] = 0;
-            frontier.Enqueue(startLocationId, 0);
-
-            while (frontier.Count > 0)
-            {
-                int current = frontier.Dequeue();
-
-                if (!visited.Add(current))
-                {
-                    continue;
-                }
-
-                foreach (Connection connection in _world.FindOutgoingConnections(current))
-                {
-                    int remainingBudget = maxTravelCost - bestCost[current];
-
-                    if (connection.TravelCost > remainingBudget)
-                    {
-                        continue;
-                    }
-
-                    int candidate = bestCost[current] + connection.TravelCost;
-
-                    if (!bestCost.TryGetValue(connection.ToLocationId, out int knownCost) || candidate < knownCost)
-                    {
-                        bestCost[connection.ToLocationId] = candidate;
-                        frontier.Enqueue(connection.ToLocationId, candidate);
-                    }
-                }
-            }
-            
-            return bestCost;
+            return null;
         }
     }
 }
